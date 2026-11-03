@@ -45,6 +45,10 @@ export const config = {
   network: n.network,
   facilitator: n.facilitator,
   payTo,
+  // Label shown for this resource in the x402 Bazaar once it is indexed. The 402's
+  // `resource` object carries it as `serviceName` (<=32 printable ASCII chars, per
+  // @x402/core ResourceInfoSchema). Without it, an indexed entry has no name.
+  serviceName: process.env.SERVICE_NAME || 'DocIntel',
   port: Number(process.env.PORT || 4021),
   // hard limits: protect compute-margin. An unpaid request costs us ~0.
   limits: {

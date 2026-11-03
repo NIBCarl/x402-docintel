@@ -123,6 +123,7 @@ Copy `.env.example` to `.env`:
 | `PAY_TO_ADDRESS` | — | **Required.** Wallet that receives settlement |
 | `PORT` | `4021` | HTTP port |
 | `FACILITATOR_URL` | see below | Override the facilitator endpoint |
+| `SERVICE_NAME` | `DocIntel` | Name advertised as `resource.serviceName` on every 402 (max 32 chars); this is the label a Bazaar entry carries |
 | `PRICE_PDF_TEXT` / `PRICE_DOC_KEYDATA` / `PRICE_PDF_INVOICE` / `PRICE_INVOICE_VALIDATE` | `.02` / `.15` / `.25` / `.50` | Per-endpoint USD price |
 | `MAX_PDF_PAGES` | `200` | Page cap, protects compute margin |
 | `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | — | Only if you point `FACILITATOR_URL` at Coinbase CDP; not needed by default |
@@ -164,7 +165,9 @@ question, and the answer is less convenient:
 
 Practical meaning: a valid 402 that nobody pays is a price tag on a shop with no door. Being
 deployed is not the same as being findable, and waiting does not close that gap. See
-`DEPLOY.md` → "Discovery: deployed, but not indexed" for the numbers and the options.
+`DEPLOY.md` → "Discovery: deployed, but not indexed" for the numbers and the options, and
+**`OUTREACH.md`** for the $0 distribution kit (ready-to-paste listings, the awesome-x402 PR
+body, and what not to do).
 
 
 
@@ -183,7 +186,7 @@ committed). The server binds `$PORT` when set, which is what Render's health che
 ## Validation
 
 ```bash
-npm test     # 45 deterministic assertions (extraction + audit engine), no network
+npm test     # 63 deterministic assertions (extraction + audit + proof logic), no network
 npm run e2e  # real PDF bytes -> unpdf -> audit decision, no network
 npm start &  # then, in another shell:
 npm run smoke  # live paywall + price assertions against the running server
@@ -193,6 +196,30 @@ npm run smoke  # live paywall + price assertions against the running server
 which skips the PDF parser entirely. It builds a spec-valid PDF, pushes it through `unpdf`, and
 checks that the clean invoice `approve`s, a tampered total `reject`s, and conflicting totals
 are flagged.
+
+### Proving the paid path for $0.00
+
+Settlement needs real USDC, so the usual way to answer "does the paywall actually work?" is
+to spend money. It isn't necessary, because the handshake has two independent halves:
+**cryptography** (the buyer signs an EIP-3009 authorization — verifiable offline, free) and
+**settlement** (the facilitator moves tokens — needs a balance).
+
+```bash
+npm run prove        # against the live host
+SELF_URL=http://127.0.0.1:4021 node tools/prove-payment-path.mjs   # against local
+```
+
+It fetches the 402, has the real `@x402/evm` client sign an authorization, recovers the
+signature **independently with viem**, then posts the signed payload to the facilitator's
+free `/verify` endpoint. `/verify` never settles, so no funds can move — and the script
+asserts that the balance and the authorization nonce are unchanged afterwards.
+
+The pass condition is precise: the facilitator must accept every term and reject on
+**balance alone** (`invalid_exact_evm_insufficient_balance`). Any other rejection reason is a
+defect in our challenge. Measured 2026-11-03 against the live host, 23/23 checks passed, with
+the facilitator's rejection containing the decoded calldata — correct `payTo`, correct
+`value`, correct `asset` — failing only on `ERC20: transfer amount exceeds balance`.
+
 
 ## The experiment this is built for
 

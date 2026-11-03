@@ -21,6 +21,7 @@ const route = (price, description, tags, example) => ({
   accepts: [{ scheme: 'exact', price, network: config.network, payTo: config.payTo }],
   description,
   mimeType: 'application/json',
+  serviceName: config.serviceName,
   tags,
   extensions: {
     bazaar: {
@@ -172,6 +173,7 @@ app.post('/v1/invoice/audit', async (req, res) => {
 app.get('/', (_req, res) => {
   res.json({
     service: 'docintel-x402',
+    serviceName: config.serviceName,
     tagline: 'Document intelligence for AI agents. Pay-per-call, no API key.',
     protocol: `x402 v2 · ${config.network} · scheme=exact`,
     mode: config.mode,
