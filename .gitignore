@@ -1,0 +1,10 @@
+node_modules/
+.buyer-key
+.payto-key
+.env
+.env.*
+!.env.example
+boot.log
+boot.err
+*.log
+.DS_Store

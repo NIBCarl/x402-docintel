@@ -1,0 +1,30 @@
+{
+  "name": "x402-docintel",
+  "version": "1.0.0",
+  "description": "Deterministic document intelligence API monetized per-call with the x402 payment protocol",
+  "type": "module",
+  "main": "src/server.mjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test",
+    "selftest": "node src/buyer-selftest.mjs",
+    "genwallet": "node src/gen-wallet.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "e2e": "node tools/e2e-audit.mjs"
+  },
+
+  "keywords": ["x402", "usdc", "pdf", "document-intelligence", "micropayments"],
+  "license": "MIT",
+  "dependencies": {
+    "@x402/core": "^2.29.0",
+    "@x402/evm": "^2.29.0",
+    "@x402/express": "^2.29.0",
+    "@x402/fetch": "^2.29.0",
+    "express": "^5.3.0",
+    "unpdf": "^2.1.0",
+    "viem": "^2.57.15"
+  }
+}

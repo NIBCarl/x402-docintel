@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: x402-docintel
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # FREE tier: $0/month. Render spins the instance down after 15 min idle and
+    # cold-starts on the next request (~30-50s, billed to the caller, not to us).
+    # Rationale: we earn $0 while unproven, so paying $7/mo for always-on earns
+    # nothing extra. Upgrade to `starter` only after the first stranger pays.
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: X402_MODE
+        value: testnet
+      - key: PAY_TO_ADDRESS
+        sync: false          # set in the Render dashboard; never commit a real address
+      - key: NODE_ENV
+        value: production
+
