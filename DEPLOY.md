@@ -1,8 +1,21 @@
 # Deploy runbook
 
-State: **ready to deploy, verified up to the account boundary.** Everything that can be
-checked without a hosting account has been checked; the remaining steps require a Render
-account, which only the account holder can create.
+State: **DEPLOYED AND LIVE on mainnet.**
+
+- Public URL: <https://x402-docintel.onrender.com>
+- Health: `GET /health` → 200 `{"ok":true,"mode":"mainnet","network":"eip155:8453"}`
+- Paywall: all 4 endpoints return 402 with a valid mainnet challenge (32/32 live assertions passed)
+- Blueprint sync: `ee1a47a`, branch `main`, private repo `NIBCarl/x402-docintel`
+- Paying to: `0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868` (verified in the live 402 challenge)
+
+Note: the POSTs in Step 6 below used `http://` in the challenge URL because Render terminates
+TLS and forwards over HTTP — the resource URL in the payload reflects the internal hop, which is
+harmless: buyers use the public `https://` URL they were given, and the signed payment scheme
+(`eip155:8453` + amount + payTo) is what gets settled, not the advertised string.
+
+Everything that can be checked without a hosting account has been checked; the remaining steps
+require a Render account, which only the account holder can create.
+
 
 ## Verified, with evidence
 
