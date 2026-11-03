@@ -125,15 +125,30 @@ Copy `.env.example` to `.env`:
 | `FACILITATOR_URL` | see below | Override the facilitator endpoint |
 | `PRICE_PDF_TEXT` / `PRICE_DOC_KEYDATA` / `PRICE_PDF_INVOICE` / `PRICE_INVOICE_VALIDATE` | `.02` / `.15` / `.25` / `.50` | Per-endpoint USD price |
 | `MAX_PDF_PAGES` | `200` | Page cap, protects compute margin |
-| `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | — | Mainnet only |
+| `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | — | Only if you point `FACILITATOR_URL` at Coinbase CDP; not needed by default |
 
 ### Testnet vs mainnet
 
 The free public facilitator `https://x402.org/facilitator` settles **testnets only** — it
-advertises `eip155:84532` and not `8453`. Real revenue therefore requires the
-**Coinbase CDP facilitator** (`https://api.cdp.coinbase.com/platform/v2/x402`) with an API key.
-Switching is a config change, not a code change: set `X402_MODE=mainnet` plus the CDP
-credentials and a real `PAY_TO_ADDRESS`.
+advertises `eip155:84532` and not `8453`, so it cannot produce real revenue.
+
+That does **not** mean CDP credentials are required. `https://facilitator.payai.network`
+is a public facilitator that advertises `scheme=exact` on `eip155:8453` (Base mainnet) and
+serves `/verify` and `/settle` without authentication. This was verified directly, not
+assumed:
+
+```bash
+# advertises eip155:8453 scheme=exact  -> this service can settle real USDC
+curl -s https://facilitator.payai.network/supported | grep -o 'eip155:8453' | head -1
+
+# settlement endpoint answers, and rejects only bad *input* (400), never auth (401)
+curl -s -X POST https://facilitator.payai.network/settle -d '{}'
+# {"success":false,"errorReason":"invalid_payment_requirements",...}
+```
+
+So mainnet is a config switch: `X402_MODE=mainnet` plus a real `PAY_TO_ADDRESS`. Set
+`FACILITATOR_URL` to the CDP endpoint only if you specifically want Coinbase's facilitator.
+
 
 ## Deploy
 
@@ -143,7 +158,9 @@ docker run -p 4021:4021 -e PAY_TO_ADDRESS=0xYourWallet x402-docintel
 ```
 
 Or use the included `render.yaml` blueprint (Docker runtime, health check on `/health`,
-`PAY_TO_ADDRESS` supplied through the dashboard rather than committed).
+`X402_MODE=mainnet`, and `PAY_TO_ADDRESS` supplied through the dashboard rather than
+committed). The server binds `$PORT` when set, which is what Render's health check requires.
+
 
 ## Validation
 
@@ -179,8 +196,9 @@ Decision rules, fixed before the money is spent:
 1. **$0 budget until a stranger pays.** Free hosting tier only. Revenue is $0 whether the
    service is asleep or awake, so paying for uptime before demand exists buys nothing.
 2. **Deploy to Base mainnet, not testnet.** Testnet payments are invisible to the census and
-   to Bazaar, which makes the experiment unmeasurable. This needs a real `PAY_TO_ADDRESS` and
-   CDP credentials.
+   to Bazaar, which makes the experiment unmeasurable. This needs a real `PAY_TO_ADDRESS`;
+   no CDP account is required, because `facilitator.payai.network` settles `eip155:8453`.
+
 3. **The milestone is binary:** a USDC transfer into our `payTo` from an address that is not
    ours. `revenue-agent/watch-ours.mjs` detects exactly that and nothing else counts.
 4. **Two weeks, then reprice or stop.** If no stranger payment lands, the price or the offer
