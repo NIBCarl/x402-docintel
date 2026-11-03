@@ -204,6 +204,21 @@ export const testHarness = async ({ pdf_base64, max_pages }) => readPdf(toBuffer
 
 export const start = () => {
   warnIfUnconfigured().forEach((w) => console.warn('[CONFIG WARN]', w));
+
+  // Fail closed on mainnet. Without PAY_TO_ADDRESS the server falls back to the
+  // zero address and starts happily, /health returns 200, and the host reports a
+  // green deploy - while every payment settles to 0x000...000 and is unrecoverable.
+  // A stopped deploy is loud and costs nothing; a live deploy that eats money is
+  // silent. Refuse to start instead.
+  if (isMainnet && /^0x0{40}$/.test(config.payTo)) {
+    console.error(
+      'FATAL: X402_MODE=mainnet requires a real PAY_TO_ADDRESS.\n' +
+        'Refusing to start: the zero address would silently swallow every payment.\n' +
+        'Set PAY_TO_ADDRESS in your host\'s environment settings and redeploy.'
+    );
+    process.exit(1);
+  }
+
   return app.listen(config.port, () => {
     console.log(`DocIntel x402 listening on :${config.port}  mode=${config.mode} network=${config.network}`);
     console.log(`facilitator=${config.facilitator}`);
