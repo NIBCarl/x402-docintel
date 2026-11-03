@@ -9,3 +9,8 @@ boot.log
 boot.err
 *.log
 .DS_Store
+
+# runtime logs from local port/health probes
+b.log
+b.err
+*.log
