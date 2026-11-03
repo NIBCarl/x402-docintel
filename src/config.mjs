@@ -21,8 +21,15 @@ const NETWORKS = {
   },
   mainnet: {
     network: 'eip155:8453',
-    // Coinbase CDP facilitator is required for mainnet settlement.
-    facilitator: process.env.FACILITATOR_URL || 'https://api.cdp.coinbase.com/platform/v2/x402',
+    // Coinbase CDP was the original mainnet requirement, but a public facilitator
+    // supporting `exact` on eip155:8453 removes the hard dependency on CDP keys.
+    // Verified 2026-11-03 against GET /supported:
+    //   facilitator.payai.network      -> exact, eip155:8453 (x402Version 2)  <- default
+    //   facilitator.daydreams.systems  -> exact, eip155:8453 (x402Version 2)
+    //   x402.org/facilitator           -> testnets only, never settles mainnet
+    // Set FACILITATOR_URL to https://api.cdp.coinbase.com/platform/v2/x402 if you
+    // do hold CDP credentials and prefer the Coinbase-operated path.
+    facilitator: process.env.FACILITATOR_URL || 'https://facilitator.payai.network',
     defaultPayTo: '0x0000000000000000000000000000000000000000',
   },
 };
@@ -79,7 +86,8 @@ config.selftestMaxUsd = maxEndpointUsd;
 export const warnIfUnconfigured = () => {
   const w = [];
   if (/^0x0{40}$/.test(config.payTo)) w.push('PAY_TO_ADDRESS is the zero address — payments would be lost. Set PAY_TO_ADDRESS.');
-  if (config.mode === 'mainnet' && !process.env.CDP_API_KEY_ID) w.push('mainnet mode without CDP_API_KEY_ID: mainnet settlement will fail.');
+  // CDP keys are no longer part of this check: a public facilitator covers mainnet.
+  if (!config.facilitator) w.push('No facilitator configured — nobody can settle payments.');
   return w;
 };
 
