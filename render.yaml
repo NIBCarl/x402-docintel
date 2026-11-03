@@ -11,8 +11,15 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      # MAINNET, not testnet. Testnet settlement is invisible to the x402 Bazaar
+      # and to the on-chain census, so a testnet deployment cannot answer the only
+      # question this service exists to ask: will a stranger pay real USDC?
       - key: X402_MODE
-        value: testnet
+        value: mainnet
+      # Public facilitator serving scheme=exact on eip155:8453. Using it means no
+      # CDP account is required. Swap to the CDP URL if you prefer Coinbase's.
+      - key: FACILITATOR_URL
+        value: https://facilitator.payai.network
       - key: PAY_TO_ADDRESS
         sync: false          # set in the Render dashboard; never commit a real address
       - key: NODE_ENV
