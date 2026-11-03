@@ -1,16 +1,20 @@
-node_modules/
-.buyer-key
-.payto-key
-.payto-mnemonic
+﻿# secrets and local config - never commit
 .env
 .env.*
 !.env.example
-boot.log
-boot.err
-*.log
-.DS_Store
+.buyer-key
+.payto-key
+.payto-mnemonic
+
+# build artifacts
+node_modules/
 
 # runtime logs from local port/health probes
+*.log
+boot.log
+boot.err
 b.log
 b.err
-*.log
+
+# OS noise
+.DS_Store
