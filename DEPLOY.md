@@ -169,12 +169,12 @@ If `/health` works but there is no 402, you are on testnet: recheck `X402_MODE`.
 ### Step 7 — Point the milestone watcher at the live address
 
 ```bash
-cd c:\Users\Engr. John Rome\Documents\personal\tools\edit-local-ai\revenue-agent
-node watch-ours.mjs 0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868
+node tools/watch-ours.mjs 0xYOUR_PAY_TO_ADDRESS
 ```
 
-A non-zero stranger-sender count is the milestone. Installs, health checks, uptime and Bazaar
-impressions are not revenue and do not count.
+This scans Base mainnet USDC transfers into the address and reports the only number that
+matters: **how many distinct senders that are not you**. It is read-only (public RPC,
+`eth_getLogs` only) and writes `ours-status.json` locally.
 
 ## Troubleshooting
 

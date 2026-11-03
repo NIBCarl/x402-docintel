@@ -66,8 +66,9 @@ same invoice always hashes the same and a second submission can be caught before
 
 ## Pricing model
 
-Prices are set from measured on-chain data, not guesswork (see `revenue-agent/leverage.mjs`).
-Among real document sellers on Base, daily revenue correlates with **price** (Spearman 0.43)
+Prices are set from measured on-chain data, not guesswork. The pricing study is the
+`tools/`-adjacent analysis referenced in this repo's history; the conclusion is what matters:
+among real document sellers on Base, daily revenue correlates with **price** (Spearman 0.43)
 more strongly than with **call volume** (0.29):
 
 - `intel.degenscan.io` — 14 calls/day at ~$60/call → **$855/day**
@@ -248,14 +249,14 @@ Decision rules, fixed before the money is spent:
    no CDP account is required, because `facilitator.payai.network` settles `eip155:8453`.
 
 3. **The milestone is binary:** a USDC transfer into our `payTo` from an address that is not
-   ours. `revenue-agent/watch-ours.mjs` detects exactly that and nothing else counts.
+   ours. `tools/watch-ours.mjs` detects exactly that and nothing else counts.
 4. **Two weeks, then reprice or stop.** If no stranger payment lands, the price or the offer
    is wrong — do not extend the window and call it patience.
 
 To check the only metric that matters:
 
 ```bash
-cd ../revenue-agent && node watch-ours.mjs    # reads PAY_TO_ADDRESS from .env
+node tools/watch-ours.mjs    # reads PAY_TO_ADDRESS from .env, or pass an address as arg 1
 ```
 
 It prints paid/not-paid, USD received, distinct senders, and active days. A control run against

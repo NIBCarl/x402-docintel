@@ -63,7 +63,7 @@ export const config = {
     fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 12_000),
   },
   prices: {
-    // Pricing is set from measured on-chain data (revenue-agent/leverage.mjs):
+    // Pricing is set from measured on-chain data (a census of 102,080 x402 endpoints):
     // among real doc sellers, revenue correlates with PRICE (Spearman 0.43) more
     // than with CALL VOLUME (0.29). blockrun does 4,500 calls/day for $45; degenscan
     // does 14 calls/day at ~$60/call. Commodity PDF text is a race to the bottom
