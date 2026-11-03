@@ -78,10 +78,14 @@ const main = async () => {
   log(`network       : ${config.network}  mode=${config.mode}`);
   log('');
 
-  // Hard guard: cap any single payment at 0.25 USDC (6 decimals) regardless of what a server asks.
+  // Hard guard: cap any single payment at the priciest endpoint (derived from
+  // config.prices, currently $0.50) regardless of what a server asks, so a
+  // misconfigured or hostile server cannot drain the test wallet.
+  const capMicro = String(Math.round(config.selftestMaxUsd * 1e6));
+  log(`spend cap     : ${config.selftestMaxUsd} USDC per payment`);
   const fetchWithPay = wrapFetchWithPaymentFromConfig(fetch, {
     schemes: [{ network: config.network, client: new ExactEvmScheme(account) }],
-    spendControls: { maxAmountPerPayment: '250000' },
+    spendControls: { maxAmountPerPayment: capMicro },
   });
 
   /* ---------- STEP 1: unpaid request must yield a parseable 402 ---------- */

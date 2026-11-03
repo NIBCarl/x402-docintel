@@ -66,9 +66,20 @@ export const config = {
 };
 
 export const isMainnet = MODE === 'mainnet';
+
+/** Parse "$0.50" -> 0.5. Used for the spend cap and for validation. */
+const usdOf = (p) => Number(String(p).replace(/[^0-9.]/g, ''));
+
+// The buyer selftest caps a single payment so a misconfigured or hostile server
+// cannot drain the test wallet. Derive it from the priciest endpoint so it can
+// never drift out of sync with the price list above.
+export const maxEndpointUsd = Math.max(...Object.values(config.prices).map(usdOf));
+config.selftestMaxUsd = maxEndpointUsd;
+
 export const warnIfUnconfigured = () => {
   const w = [];
   if (/^0x0{40}$/.test(config.payTo)) w.push('PAY_TO_ADDRESS is the zero address — payments would be lost. Set PAY_TO_ADDRESS.');
   if (config.mode === 'mainnet' && !process.env.CDP_API_KEY_ID) w.push('mainnet mode without CDP_API_KEY_ID: mainnet settlement will fail.');
   return w;
 };
+

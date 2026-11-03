@@ -17,9 +17,10 @@ paid call is almost pure margin, and results are reproducible for a given PDF.
 
 | Method | Path | Price | What it returns |
 |---|---|---|---|
-| `POST` | `/v1/pdf/text` | `$0.01` | Merged plaintext, page/word/char counts, metadata, `has_text_layer` flag |
-| `POST` | `/v1/pdf/invoice` | `$0.05` | Invoice number, vendor, total, tax, currency, issue/due dates, PO |
-| `POST` | `/v1/doc/keydata` | `$0.03` | Emails, phones, URLs, dates, amounts, companies, addresses |
+| `POST` | `/v1/pdf/text` | `$0.02` | Merged plaintext, page/word/char counts, metadata, `has_text_layer` flag |
+| `POST` | `/v1/doc/keydata` | `$0.15` | Emails, phones, URLs, dates, amounts, companies, addresses |
+| `POST` | `/v1/pdf/invoice` | `$0.25` | Invoice number, vendor, total, tax, currency, issue/due dates, PO |
+| `POST` | `/v1/invoice/audit` | `$0.50` | **A decision**, not fields: `approve`/`review`/`reject`, risk score, reason codes, `dedupe_key` |
 | `GET` | `/` | free | Service discovery: prices, network, `payTo`, calling instructions |
 | `GET` | `/health` | free | Liveness plus current mode/network |
 
@@ -28,6 +29,58 @@ Request body accepts either `pdf_base64` or a public `url`:
 ```json
 { "pdf_base64": "<base64 of the PDF>" }
 ```
+
+### `/v1/invoice/audit` — why the premium tier exists
+
+Raw field extraction is a commodity: the on-chain median price for a document endpoint is
+about `$0.002`, and no seller on the network has ever had more than 57 distinct buyers. You
+cannot reach meaningful revenue selling PDF-to-text, because the buyer pool is too small to
+make up in volume.
+
+The audit route sells the thing an AP or audit team actually pays for — a *decision with
+reasons* — and returns a `dedupe_key` for duplicate-payment prevention:
+
+```json
+{
+  "decision": "review",
+  "risk_score": 15,
+  "checks_run": 7,
+  "checks_failed": 1,
+  "findings": [{ "code": "DUE_BEFORE_ISSUE", "severity": "major", "detail": "due 2026-01-05 precedes issue 2026-02-01" }],
+  "dedupe_key": "9f2c...e41a",
+  "extracted": { "total": 1250, "subtotal": 1213.59, "tax_amount": 36.41, "currency": "USD" },
+  "audit": { "math_verified": true, "tolerance_abs": 0.02, "max_age_days": 365, "as_of": "2026-11-03" }
+}
+```
+
+Seven deterministic checks run per document: required-field presence, `subtotal + tax == total`
+arithmetic, tax plausibility, date ordering and staleness, conflicting totals, total below
+subtotal without a discount line, and text-layer presence. `decision` is `reject` on any
+critical finding, `review` on any major one, otherwise `approve`. No LLM is involved, so the
+marginal cost of the most expensive endpoint is still effectively zero.
+
+`dedupe_key` is a SHA-256 of invoice number + vendor + total + currency + issue date, so the
+same invoice always hashes the same and a second submission can be caught before payment.
+
+## Pricing model
+
+Prices are set from measured on-chain data, not guesswork (see `revenue-agent/leverage.mjs`).
+Among real document sellers on Base, daily revenue correlates with **price** (Spearman 0.43)
+more strongly than with **call volume** (0.29):
+
+- `intel.degenscan.io` — 14 calls/day at ~$60/call → **$855/day**
+- `blockrun.ai` — 4,500 calls/day at $0.01 → **$45/day**
+
+318× the calls, 19× less revenue. So the value tiers are priced up rather than raced to the
+bottom. Calls needed per day to reach the $7/day target:
+
+| Price | Calls/day for $7 |
+|---|---|
+| `$0.02` | 350 |
+| `$0.15` | 47 |
+| `$0.25` | 28 |
+| `$0.50` | 14 |
+
 
 ## How payment works
 
@@ -44,7 +97,7 @@ Request body accepts either `pdf_base64` or a public `url`:
 npm ci
 npm run genwallet     # testnet receiver wallet -> writes PAY_TO_ADDRESS into .env
 npm start             # http://127.0.0.1:4021
-npm test              # 19 deterministic extraction tests, no network
+npm test              # 45 deterministic assertions, no network
 ```
 
 Then prove the whole payment path locally:
@@ -54,9 +107,9 @@ npm run selftest
 ```
 
 `selftest` creates a throwaway buyer key (saved to `.buyer-key`), hits the endpoint unpaid to
-confirm the `402`, then pays through the official `@x402/fetch` client with a hard
-`0.25 USDC` per-payment cap. On a wallet with no funds it stops at
-`PAYMENT_UNFUNDED` — which still proves the request was signed and verified, because the
+confirm the `402`, then pays through the official `@x402/fetch` client with a hard per-payment
+cap. On a wallet with no funds it stops at `PAYMENT_UNFUNDED` — which still proves the request
+was signed and verified, because the
 facilitator only rejects on balance. Fund the printed address at
 <https://faucet.circle.com/> (Base Sepolia) and rerun to reach `PAID_LOOP_OK`.
 
@@ -70,7 +123,7 @@ Copy `.env.example` to `.env`:
 | `PAY_TO_ADDRESS` | — | **Required.** Wallet that receives settlement |
 | `PORT` | `4021` | HTTP port |
 | `FACILITATOR_URL` | see below | Override the facilitator endpoint |
-| `PRICE_PDF_TEXT` / `PRICE_PDF_INVOICE` / `PRICE_DOC_KEYDATA` | `.01` / `.05` / `.03` | Per-endpoint USD price |
+| `PRICE_PDF_TEXT` / `PRICE_DOC_KEYDATA` / `PRICE_PDF_INVOICE` / `PRICE_INVOICE_VALIDATE` | `.02` / `.15` / `.25` / `.50` | Per-endpoint USD price |
 | `MAX_PDF_PAGES` | `200` | Page cap, protects compute margin |
 | `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | — | Mainnet only |
 
@@ -92,7 +145,58 @@ docker run -p 4021:4021 -e PAY_TO_ADDRESS=0xYourWallet x402-docintel
 Or use the included `render.yaml` blueprint (Docker runtime, health check on `/health`,
 `PAY_TO_ADDRESS` supplied through the dashboard rather than committed).
 
-## Custody warning
+## Validation
+
+```bash
+npm test     # 45 deterministic assertions (extraction + audit engine), no network
+npm run e2e  # real PDF bytes -> unpdf -> audit decision, no network
+npm start &  # then, in another shell:
+npm run smoke  # live paywall + price assertions against the running server
+```
+
+`npm run e2e` is the one that matters for regressions: the unit tests inject text directly,
+which skips the PDF parser entirely. It builds a spec-valid PDF, pushes it through `unpdf`, and
+checks that the clean invoice `approve`s, a tampered total `reject`s, and conflicting totals
+are flagged.
+
+## The experiment this is built for
+
+This service exists to answer one question with real money at stake: **can a document API on
+x402 earn $5–7/day?** The honest starting point is that it probably cannot, and the point of
+running it is to find out cheaply rather than to assume.
+
+What the data already establishes (full-registry census of 102,080 endpoints, 1,786 sellers):
+
+- Only **3.7%** of document sellers earn ≥ $7/day, and 44.1% earn nothing at all.
+- **Max 57 distinct buyers** on any seller — the buyer pool, not effort, is the ceiling.
+- **22.5% of tracked document volume is wash trading.** One "whale" moving $39k/day is two
+  wallets paying themselves, so headline market numbers are not trustworthy.
+- Legitimate sellers do exist and do repeat: 8 sellers with 3–57 distinct buyers earn on 7/7
+  days, led by `intel.degenscan.io` at $855/day.
+
+Decision rules, fixed before the money is spent:
+
+1. **$0 budget until a stranger pays.** Free hosting tier only. Revenue is $0 whether the
+   service is asleep or awake, so paying for uptime before demand exists buys nothing.
+2. **Deploy to Base mainnet, not testnet.** Testnet payments are invisible to the census and
+   to Bazaar, which makes the experiment unmeasurable. This needs a real `PAY_TO_ADDRESS` and
+   CDP credentials.
+3. **The milestone is binary:** a USDC transfer into our `payTo` from an address that is not
+   ours. `revenue-agent/watch-ours.mjs` detects exactly that and nothing else counts.
+4. **Two weeks, then reprice or stop.** If no stranger payment lands, the price or the offer
+   is wrong — do not extend the window and call it patience.
+
+To check the only metric that matters:
+
+```bash
+cd ../revenue-agent && node watch-ours.mjs    # reads PAY_TO_ADDRESS from .env
+```
+
+It prints paid/not-paid, USD received, distinct senders, and active days. A control run against
+a known-active seller address confirms the detector actually finds payments, so a `$0` result
+is a real zero rather than a broken query.
+
+
 
 `gen-wallet.mjs` writes a private key to `.payto-key` on disk. That is acceptable for
 **testnet only**. For mainnet revenue, set `PAY_TO_ADDRESS` to a wallet you actually control
