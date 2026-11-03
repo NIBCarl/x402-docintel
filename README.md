@@ -149,6 +149,24 @@ curl -s -X POST https://facilitator.payai.network/settle -d '{}'
 So mainnet is a config switch: `X402_MODE=mainnet` plus a real `PAY_TO_ADDRESS`. Set
 `FACILITATOR_URL` to the CDP endpoint only if you specifically want Coinbase's facilitator.
 
+### Settlement vs. discovery (an important distinction)
+
+No CDP account is needed to **settle** payments, as shown above. Discovery is a different
+question, and the answer is less convenient:
+
+- Bazaar indexing is earned by **settlement**, not by deploying. A facilitator catalogs a
+  resource only after it has seen a payment succeed.
+- The CDP catalog is "discovered by the CDP Facilitator". payai mirrors a 15k subset of CDP's
+  105k entries — and whether a payai-settled payment propagates into either catalog is
+  **unverified**.
+- Measured 2026-11-03: our resource appears in neither catalog, and a search for `docintel`
+  returns 0 results. There is no manual registration endpoint (`POST /discovery/register` → 404).
+
+Practical meaning: a valid 402 that nobody pays is a price tag on a shop with no door. Being
+deployed is not the same as being findable, and waiting does not close that gap. See
+`DEPLOY.md` → "Discovery: deployed, but not indexed" for the numbers and the options.
+
+
 
 ## Deploy
 

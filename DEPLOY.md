@@ -31,7 +31,7 @@ require a Render account, which only the account holder can create.
 | Docker install step | `npm ci --omit=dev` | exit 0, 97 packages, no lockfile drift |
 | Facilitator serves mainnet | `GET facilitator.payai.network/supported` | `scheme=exact` on `eip155:8453` |
 | Facilitator settles free | `POST facilitator.payai.network/settle` | `400 invalid_payment_requirements` (input error, **not** 401 auth) |
-| No CDP needed | same two calls | confirmed |
+| No CDP needed to settle | same two calls | confirmed — but see "Discovery" below: no CDP does **not** mean indexed |
 | Mnemonic ↔ address | derive address from `.payto-mnemonic` | matches `.env` exactly — funds recoverable |
 | Secrets untracked | `git check-ignore` + remote tree scan | `.env`, `.payto-mnemonic`, `.payto-key`, `.buyer-key` all absent |
 | Fails closed on mainnet | `X402_MODE=mainnet`, `PAY_TO_ADDRESS` unset | exit 1, FATAL, never serves — cannot eat payments |
@@ -199,7 +199,42 @@ only after the first stranger pays.
 
 
 
+## Discovery: deployed, but not indexed — the real blocker
+
+Deploying made the service reachable. It did **not** make it findable. Measured 2026-11-03:
+
+| Check | Result |
+|---|---|
+| CDP canonical `GET api.cdp.coinbase.com/.../discovery/resources` | 200, `total=105661`, **ours absent** |
+| payai mirror `GET facilitator.payai.network/discovery/resources` | 200, `total=15155`, **ours absent** |
+| `GET .../discovery/search?query=docintel` | 200, **0 results** |
+| `POST .../discovery/register` | 404 — no manual registration exists |
+
+Three facts follow:
+
+1. **Indexing is earned by settlement, not by deploying.** The Bazaar catalogs resources a
+   facilitator has actually seen a payment for. A perfectly valid 402 challenge that nobody
+   ever pays is invisible — it is a price tag on a shop with no door.
+2. **We settle through payai, and payai is not CDP.** The CDP doc says the catalog is
+   "discovered by the CDP Facilitator". payai mirrors a 15k subset of CDP's 105k. Whether a
+   payai-settled payment propagates into either catalog is **unverified** — we cannot test it
+   without a successful payment, which we cannot produce without a buyer.
+3. **The 402 already carries the bazaar extension** (`info.input`, `info.output`, JSON schema),
+   so the *precondition* for indexing is met. What is missing is the first paid call.
+
+Consequence, stated plainly: **an unpaid, unadvertised, unindexed endpoint has no discovery
+path, so 0 revenue is the expected outcome of waiting.** Time is not the missing ingredient.
+
+The only wallet we control is the payee (`0x4A223A…E868`). Self-paying to seed the index is
+USDC-in → USDC-out: net **-$0.50**, real money spent to buy one catalog entry of unknown
+durability. Not done without an explicit decision — it is a marketing spend, not a test.
+
+Cheaper alternatives, in order: post the URL where x402 buyers already look; point a paying
+agent at it; or accept that the honest result of this experiment is "no distribution, no
+revenue" rather than "waiting".
+
 ## Deliberately not done
+
 
 The service was **not** exposed through a temporary tunnel (`cloudflared`/`ngrok` are not
 installed). A quick tunnel would give a public URL for $0 today, but the URL changes on every
