@@ -21,6 +21,8 @@ account, which only the account holder can create.
 | No CDP needed | same two calls | confirmed |
 | Mnemonic ↔ address | derive address from `.payto-mnemonic` | matches `.env` exactly — funds recoverable |
 | Secrets untracked | `git check-ignore` + remote tree scan | `.env`, `.payto-mnemonic`, `.payto-key`, `.buyer-key` all absent |
+| Fails closed on mainnet | `X402_MODE=mainnet`, `PAY_TO_ADDRESS` unset | exit 1, FATAL, never serves — cannot eat payments |
+| Boots on mainnet when set | same with real address | listens, `/health` → 200, `payTo` correct |
 
 Docker is not installed on this machine, so the image itself was never built; the three
 things that break a build (lockfile drift, deps in `devDependencies`, imports leaving `src/`)
@@ -32,37 +34,157 @@ No hosting credential exists on this machine — no `RENDER_API_KEY` in the envi
 in Windows Credential Manager, no `render`/`railway`/`flyctl`/`vercel`/`gh` CLI, and Composio
 exposes no hosting toolkit. The account is the hard boundary.
 
-1. Sign up at <https://render.com> (GitHub OAuth is fastest; it needs no card on the free tier).
-2. Open the blueprint: <https://dashboard.render.com/blueprint/new?repo=https://github.com/NIBCarl/x402-docintel>
-   Render reads `render.yaml` automatically: Docker runtime, `plan: free`, `X402_MODE=mainnet`,
-   health check on `/health`.
-3. When prompted for `PAY_TO_ADDRESS` (the blueprint marks it `sync: false` on purpose, so no
-   real address is ever committed), paste:
+### Step 0 — What you need before starting
+
+- A GitHub account that can see `NIBCarl/x402-docintel` (it is **private**).
+- A browser. Nothing to install.
+- **No credit card.** Render's free tier does not require one.
+- About 10 minutes, plus 3-5 minutes of build time.
+
+### Step 1 — Sign up for Render
+
+Go to <https://render.com> and click **Get Started** / **Sign Up**.
+
+Choose **GitHub** as the sign-up method, not email. You connect GitHub in Step 2 anyway, and
+using the same identity avoids ending up with two accounts and a repo you cannot reach.
+
+There is no card prompt on the free tier. If Render asks for one, you have wandered onto a paid
+resource — back out and use the Blueprint flow below.
+
+### Step 2 — Give Render access to the private repo (the step people get stuck on)
+
+A private repo is invisible to Render until you explicitly grant access. Skipping this makes
+the repo appear "not found" and looks like a broken blueprint link.
+
+1. In the Render dashboard, open **Account Settings → GitHub** (sometimes under
+   *Integrations* or *Connected Accounts*).
+2. Click **Connect GitHub** and authorize the Render GitHub App.
+3. On the GitHub authorization screen, choose **Only select repositories** and tick
+   **`x402-docintel`**. Do not grant "All repositories".
+4. If you already connected GitHub earlier and the repo is missing, click **Configure** next to
+   the Render app on GitHub and add `x402-docintel` to the allowed list.
+
+Confirm it worked: the repo becomes selectable when creating any service.
+### Step 3 — Create the Blueprint
+
+A "Blueprint" is Render's name for "read `render.yaml` from the repo and build what it says".
+The file is already committed, so you are not filling in forms by hand.
+
+1. Open this link directly:
+
+   <https://dashboard.render.com/blueprint/new?repo=https://github.com/NIBCarl/x402-docintel>
+
+   Or navigate manually: **New +** (top right) → **Blueprint** → pick `x402-docintel`.
+
+2. Render reads `render.yaml` and shows a summary. It should say: service name
+   **x402-docintel**, runtime **Docker**, plan **Free**, health check **/health**.
+   If any of that looks wrong, stop — the blueprint was not read and you are on the wrong flow.
+
+3. Give the Blueprint a name if asked (anything, e.g. `docintel`) and continue.
+
+### Step 4 — Fill in `PAY_TO_ADDRESS`
+
+The blueprint marks this variable `sync: false`, which means **the value is never stored in the
+repo** — Render asks you for it during setup and holds it as a secret.
+
+When prompted (and afterwards under the service's **Environment** tab), set:
+
+```
+0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868
+```
+
+Paste it exactly: `0x` + 40 hex characters, no spaces, no quotes. This address was verified to
+derive from the mnemonic in `.payto-mnemonic`, so the funds are recoverable. **Back that
+mnemonic up offline before promoting the service.**
+
+Leaving it blank now fails the deploy on purpose, with
+`FATAL: X402_MODE=mainnet requires a real PAY_TO_ADDRESS`. Before that guard existed the
+service started happily and routed every payment to `0x000…000`, where it is unrecoverable.
+A red deploy beats a silent loss.
+
+The other variables come from the blueprint; verify they read:
+
+| Key | Value |
+|---|---|
+| `X402_MODE` | `mainnet` |
+| `FACILITATOR_URL` | `https://facilitator.payai.network` |
+| `NODE_ENV` | `production` |
+
+### Step 5 — Deploy and read the logs
+
+1. Click **Apply** / **Deploy Blueprint**.
+2. Render clones the repo and runs `docker build`. Expect **3-5 minutes**.
+3. Watch the **Logs** tab. A healthy boot prints exactly:
 
    ```
-   0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868
+   DocIntel x402 listening on :10000  mode=mainnet network=eip155:8453
+   facilitator=https://facilitator.payai.network
+   payTo=0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868
+   prices: {"pdfText":"$0.02","pdfInvoice":"$0.25","docKeydata":"$0.15","invoiceValidate":"$0.50"}
    ```
 
-   This address was verified to derive from `.payto-mnemonic`, so the funds are recoverable.
-   Back that mnemonic up offline before sending anyone to pay you.
-4. Deploy. First boot takes a few minutes; the free instance sleeps after 15 min idle and
-   cold-starts in ~30-50s on the next request.
+   `:10000` is expected — Render assigns the port and the server honours `$PORT`.
 
-## Immediately after the URL exists
+4. Wait for the status badge to read **Live**. That means `/health` returned 200.
+
+**Check the `payTo=` line.** If it shows `0x0000000000000000000000000000000000000000`, the
+environment variable did not take — fix it under **Environment**, save, and let it redeploy.
+### Step 6 — Verify from the outside, as a stranger would
+
+Do not trust the green badge; the only evidence that matters is a real 402 from the public URL.
+Copy the URL from the top of the Render page (`https://x402-docintel.onrender.com` or similar):
 
 ```bash
-# the paywall must answer on the public host, in mainnet
-curl -s -X POST https://<your-service>.onrender.com/v1/invoice/audit \
+curl -s -X POST https://YOUR-SERVICE.onrender.com/v1/invoice/audit \
   -H 'content-type: application/json' -d '{}' -D - | head -20
-# expect 402 + PAYMENT-REQUIRED carrying eip155:8453 and amount 500000
+```
 
-# then watch for the only thing that counts: a stranger's USDC
-cd ../../revenue-agent
+You want, in the headers:
+
+- `HTTP/2 402` — the paywall is live
+- a `PAYMENT-REQUIRED` header which, base64-decoded, contains `eip155:8453` and
+  `"amount":"500000"` (0.50 USDC)
+
+And a quick health check, expecting `{"ok":true,"mode":"mainnet","network":"eip155:8453",...}`:
+
+```bash
+curl -s https://YOUR-SERVICE.onrender.com/health
+```
+
+If `/health` works but there is no 402, you are on testnet: recheck `X402_MODE`.
+
+### Step 7 — Point the milestone watcher at the live address
+
+```bash
+cd c:\Users\Engr. John Rome\Documents\personal\tools\edit-local-ai\revenue-agent
 node watch-ours.mjs 0x4A223A518FA9C3bb1c086c30277ACb69E8D5E868
 ```
 
-A non-zero sender count there is the milestone. Anything else — installs, health checks,
-Bazaar impressions — is not.
+A non-zero stranger-sender count is the milestone. Installs, health checks, uptime and Bazaar
+impressions are not revenue and do not count.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Repo not found / empty list | Render has no access to a private repo | Step 2 — add `x402-docintel` to the GitHub App |
+| `FATAL: ... requires a real PAY_TO_ADDRESS` | Variable missing or blank | Set it under **Environment**, then **Manual Deploy → Deploy latest commit** |
+| Build fails at `npm ci` | Lockfile drift | Verified passing locally — confirm you deployed `main`, not an older branch |
+| Goes **Live** then **Failed** on health check | Crash or port binding | Read the logs; `$PORT` binding is verified |
+| First request after idling takes ~40s | Free tier slept after 15 min idle | Expected, and it bills the caller, not you |
+| `payTo=0x0000…` in the logs | Env var not applied | Edit under **Environment** and redeploy |
+
+## What this costs
+
+$0. The blueprint pins `plan: free`. Render spins a free instance down after ~15 minutes idle
+and cold-starts on the next request. Revenue is $0 whether the service is awake or asleep, so
+paying for always-on uptime before demand exists buys nothing — upgrade to `starter` ($7/mo)
+only after the first stranger pays.
+
+
+
+
+
 
 ## Deliberately not done
 
