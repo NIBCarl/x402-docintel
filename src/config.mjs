@@ -49,6 +49,10 @@ export const config = {
   // `resource` object carries it as `serviceName` (<=32 printable ASCII chars, per
   // @x402/core ResourceInfoSchema). Without it, an indexed entry has no name.
   serviceName: process.env.SERVICE_NAME || 'DocIntel',
+  // Canonical public origin. Used for the discovery documents and to pin the `resource.url`
+  // in the 402 challenge to https:// — Render terminates TLS and forwards over http, so the
+  // middleware's auto-detected URL otherwise leaks the internal hop into the payload.
+  publicUrl: (process.env.PUBLIC_URL || 'https://x402-docintel.onrender.com').replace(/\/+$/, ''),
   port: Number(process.env.PORT || 4021),
   // hard limits: protect compute-margin. An unpaid request costs us ~0.
   limits: {

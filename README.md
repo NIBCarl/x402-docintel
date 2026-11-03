@@ -22,6 +22,8 @@ paid call is almost pure margin, and results are reproducible for a given PDF.
 | `POST` | `/v1/pdf/invoice` | `$0.25` | Invoice number, vendor, total, tax, currency, issue/due dates, PO |
 | `POST` | `/v1/invoice/audit` | `$0.50` | **A decision**, not fields: `approve`/`review`/`reject`, risk score, reason codes, `dedupe_key` |
 | `GET` | `/` | free | Service discovery: prices, network, `payTo`, calling instructions |
+| `GET` | `/llms.txt` | free | LLM-facing summary: routes, prices, payment steps, limits — written for agent crawlers |
+| `GET` | `/.well-known/x402.json` | free | Static manifest: per-route `amount`/`asset`/`payTo`, bazaar status, calling steps |
 | `GET` | `/health` | free | Liveness plus current mode/network |
 
 Request body accepts either `pdf_base64` or a public `url`:
@@ -124,6 +126,7 @@ Copy `.env.example` to `.env`:
 | `PORT` | `4021` | HTTP port |
 | `FACILITATOR_URL` | see below | Override the facilitator endpoint |
 | `SERVICE_NAME` | `DocIntel` | Name advertised as `resource.serviceName` on every 402 (max 32 chars); this is the label a Bazaar entry carries |
+| `PUBLIC_URL` | `https://x402-docintel.onrender.com` | Canonical public origin. Pins `resource.url` to `https://` (Render terminates TLS, so the middleware otherwise advertises the internal `http://` hop) and is used in the discovery documents |
 | `PRICE_PDF_TEXT` / `PRICE_DOC_KEYDATA` / `PRICE_PDF_INVOICE` / `PRICE_INVOICE_VALIDATE` | `.02` / `.15` / `.25` / `.50` | Per-endpoint USD price |
 | `MAX_PDF_PAGES` | `200` | Page cap, protects compute margin |
 | `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | — | Only if you point `FACILITATOR_URL` at Coinbase CDP; not needed by default |

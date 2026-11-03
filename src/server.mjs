@@ -6,6 +6,7 @@ import { paymentMiddleware, x402ResourceServer } from '@x402/express';
 import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { HTTPFacilitatorClient } from '@x402/core/server';
 import { config, warnIfUnconfigured, isMainnet } from './config.mjs';
+import { buildLlmsTxt, buildManifest } from './discovery.mjs';
 import { toBuffer, readPdf, extractInvoice, extractKeyData, auditInvoice } from './extract.mjs';
 
 export const app = express();
@@ -101,9 +102,20 @@ export const routes = {
   ),
 };
 
+// Pin the 402's advertised `resource.url` to the canonical public origin.
+// @x402/core builds it as `routeConfig.resource || adapter.getUrl()`, and behind Render's
+// TLS terminator the adapter sees the internal `http://` hop, so the challenge otherwise
+// advertises an insecure URL for a service that is only reachable over https. Correcting
+// it here keeps the payload honest and makes the URL usable by a catalog or an agent.
+// Settlement is unaffected either way: it keys off network + asset + amount + payTo.
+for (const [key, cfg] of Object.entries(routes)) {
+  cfg.resource = `${config.publicUrl}${key.split(' ')[1]}`;
+}
 
 // MUST be registered before the handlers below, otherwise Express serves them for free.
 app.use(paymentMiddleware(routes, resourceServer));
+
+
 
 /* ---------------- handlers ---------------- */
 
@@ -200,6 +212,22 @@ app.get('/', (_req, res) => {
 app.get('/health', (_req, res) =>
   res.json({ ok: true, mode: config.mode, network: config.network, facilitator: config.facilitator, uptime_s: Math.round((Date.now() - started) / 1000) })
 );
+
+/* Free, static discovery documents. Deliberately below the payment middleware so they
+ * are never charged, and deliberately ahead of nothing else — they expose only public
+ * data (routes, prices, payTo) that every unpaid 402 already discloses. */
+app.get('/llms.txt', (_req, res) => {
+  res.type('text/plain; charset=utf-8').send(buildLlmsTxt(routes));
+});
+
+app.get('/.well-known/x402.json', async (_req, res) => {
+  try {
+    res.json(await buildManifest(routes));
+  } catch (e) {
+    // A wrong asset here would be worse than no manifest: fail loudly instead.
+    res.status(500).json({ error: `manifest generation failed: ${e.message}` });
+  }
+});
 
 /** Test hook: extract logic without payment, used only by local tests when ALLOW_LOCAL_TEST=1. */
 export const testHarness = async ({ pdf_base64, max_pages }) => readPdf(toBuffer(pdf_base64), max_pages || config.limits.maxPdfPages);

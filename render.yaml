@@ -22,6 +22,12 @@ services:
         value: https://facilitator.payai.network
       - key: PAY_TO_ADDRESS
         sync: false          # set in the Render dashboard; never commit a real address
+      # Canonical origin, so the 402 challenge and discovery docs advertise https://
+      # even though Render terminates TLS and forwards to the app over http.
+      - key: PUBLIC_URL
+        value: https://x402-docintel.onrender.com
+      - key: SERVICE_NAME
+        value: DocIntel
       - key: NODE_ENV
         value: production
 
