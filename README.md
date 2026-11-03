@@ -169,9 +169,7 @@ question, and the answer is less convenient:
 
 Practical meaning: a valid 402 that nobody pays is a price tag on a shop with no door. Being
 deployed is not the same as being findable, and waiting does not close that gap. See
-`DEPLOY.md` → "Discovery: deployed, but not indexed" for the numbers and the options, and
-**`OUTREACH.md`** for the $0 distribution kit (ready-to-paste listings, the awesome-x402 PR
-body, and what not to do).
+`DEPLOY.md` → "Discovery: deployed, but not indexed" for the numbers and the options.
 
 
 

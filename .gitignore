@@ -16,5 +16,9 @@ boot.err
 b.log
 b.err
 
+# internal distribution playbook - deliberately kept OUT of the public repo
+# (it is a private strategy doc: target venues, self-promotion plan, PR copy)
+OUTREACH.md
+
 # OS noise
 .DS_Store
